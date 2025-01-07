@@ -1,0 +1,17 @@
+services:
+  frontend:
+    build: ./frontend
+    command: sh -c "streamlit run src/app/home.py"
+    ports:
+      - "80:8501"
+    networks:
+      - service_network
+  backend:
+    build: ./backend
+    command: sh -c "uvicorn src.app.main:app --reload --host 0.0.0.0 --port 8000"
+    networks:
+      - service_network
+
+networks:
+  service_network:
+    driver: bridge
