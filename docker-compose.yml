@@ -1,17 +1,52 @@
 services:
   frontend:
-    build: ./frontend
-    command: sh -c "streamlit run src/app/home.py"
+    build: ./src/frontend
+    command: sh -c "streamlit run app/home.py"
     ports:
-      - "80:8501"
+      - "${FRONTEND_LOCAL_PORT}:${FRONTEND_CONTAINER_PORT}"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:${FRONTEND_CONTAINER_PORT}"]
+      interval: ${INTERVAL}
+      timeout: ${TIMEOUT}
+      retries: ${RETRIES}
+    depends_on:
+      backend:
+        condition: service_healthy
     networks:
       - service_network
   backend:
-    build: ./backend
-    command: sh -c "uvicorn src.app.main:app --reload --host 0.0.0.0 --port 8000"
+    build: ./src/backend
+    command: sh -c "uvicorn app.main:app --reload --host ${BACKEND_CONTAINER_HOST} --port ${BACKEND_CONTAINER_PORT}"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:${BACKEND_CONTAINER_PORT}/ || exit 1"]
+      interval: ${INTERVAL}
+      timeout: ${TIMEOUT}
+      retries: ${RETRIES}
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - service_network
+  db:
+    build: ./db
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=${POSTGRES_DB}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./db/init/:/docker-entrypoint-initdb.d/
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -d ${POSTGRES_DB} -h ${POSTGRES_HOST} -p ${POSTGRES_PORT} -U ${POSTGRES_USER}"]
+      interval: ${INTERVAL}
+      timeout: ${TIMEOUT}
+      retries: ${RETRIES}
     networks:
       - service_network
 
 networks:
   service_network:
     driver: bridge
+
+volumes:
+  postgres_data:
